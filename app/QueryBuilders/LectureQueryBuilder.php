@@ -1,0 +1,112 @@
+<?php
+
+namespace App\QueryBuilders;
+
+use App\Enums\LecturePaymentTypeEnum;
+use App\Models\LecturePaymentType;
+use App\Repositories\LectureRepository;
+use Illuminate\Database\Eloquent\Builder;
+
+class LectureQueryBuilder extends Builder
+{
+    public function watched(): Builder
+    {
+        if (! $user = auth()->user()) {
+            return $this;
+        }
+
+        $watchedIds = $user->watchedLectures()->pluck('lectures.id');
+        $this->whereIn('id', $watchedIds);
+
+        if ($watchedIds->isNotEmpty()) {
+            $ids = $watchedIds->implode(',');
+            $this->orderByRaw("FIELD(id, $ids)");
+        }
+
+        return $this;
+    }
+
+    public function listWatched(): Builder
+    {
+        if (! $user = auth()->user()) {
+            return $this;
+        }
+
+        $listWatchedIds = $user->listWatchedLectures()->pluck('lectures.id');
+
+        $this->whereIn('id', $listWatchedIds);
+
+        if ($listWatchedIds->isNotEmpty()) {
+            $ids = $listWatchedIds->implode(',');
+            $this->orderByRaw("FIELD(id, $ids)");
+        }
+
+        return $this;
+    }
+
+    public function saved(): Builder
+    {
+        if (! $user = auth()->user()) {
+            return $this;
+        }
+
+        $savedIds = $user->savedLectures()->pluck('id');
+
+        $this->whereIn('id', $savedIds);
+
+        if ($savedIds->isNotEmpty()) {
+            $ids = $savedIds->implode(',');
+            $this->orderByRaw("FIELD(id, $ids)");
+        }
+
+        return $this;
+    }
+
+    public function promo(): Builder
+    {
+        return $this->where('payment_type_id', LecturePaymentTypeEnum::PROMO->value);
+    }
+
+    public function notPromo(): Builder
+    {
+        return $this->where('payment_type_id', '!=', LecturePaymentTypeEnum::PROMO->value);
+    }
+
+    public function purchased(): Builder
+    {
+        if (! auth()->user()) {
+            return $this;
+        }
+
+        $purchasedLectures = app(LectureRepository::class)->getPurchasedLectures();
+
+        return $this->whereIn('id', $purchasedLectures->pluck('id'));
+        //            ->orderByRaw("FIELD(id, $ids)");
+    }
+
+    public function free(): Builder
+    {
+        return $this->where('payment_type_id', LecturePaymentTypeEnum::FREE->value);
+    }
+
+    public function payed(): Builder
+    {
+        return $this->where('payment_type_id', '!=', LecturePaymentTypeEnum::FREE->value);
+    }
+
+    public function notWatched(): Builder
+    {
+        if (! auth()->user()) {
+            return $this;
+        }
+
+        return $this->whereDoesntHave('watchedUsers', function ($query) {
+            $query->where('user_id', auth()->id());
+        });
+    }
+
+    public function recommended(): Builder
+    {
+        return $this->where('is_recommended', true);
+    }
+}
